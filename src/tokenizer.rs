@@ -6,13 +6,13 @@ pub struct Tokenizer {
     source: std::collections::VecDeque<char>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum BinaryOp {
     Plus,
     Minus,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum NumberTypeFlag {
     Signed,
     Floating,
@@ -20,7 +20,7 @@ pub enum NumberTypeFlag {
     Binary,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Token {
     Number {
         raw: String,
@@ -43,6 +43,7 @@ impl Tokenizer {
             source: source_code.chars().collect::<Vec<_>>().into(),
         }
     }
+    // TODO: Parsing floats, signed, hexadecimal, binary numbers
     pub fn tokenize(mut self) -> TokenizerResult {
         let mut tokens = vec![];
         while !self.finished() {
@@ -94,5 +95,51 @@ impl Tokenizer {
         while self.peek().is_some_and(|c| c.is_whitespace()) {
             self.consume();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::tokenizer::Token;
+
+    use super::Tokenizer;
+
+    #[test]
+    fn empty() {
+        let src = "".to_string();
+        let tokenizer = Tokenizer::new(src);
+        assert_eq!(tokenizer.tokenize().unwrap(), vec![])
+    }
+
+    #[test]
+    fn numbers() {
+        let src = "123 69".to_string();
+        let tokenizer = Tokenizer::new(src);
+        assert_eq!(
+            tokenizer.tokenize().unwrap(),
+            vec![
+                Token::Number {
+                    raw: "123".to_lowercase(),
+                    flags: vec![]
+                },
+                Token::Number {
+                    raw: "69".to_lowercase(),
+                    flags: vec![]
+                },
+            ]
+        )
+    }
+    #[test]
+    fn operators() {
+        let src = "- + -".to_string();
+        let tokenizer = Tokenizer::new(src);
+        assert_eq!(
+            tokenizer.tokenize().unwrap(),
+            vec![
+                Token::BinaryOperator(crate::tokenizer::BinaryOp::Minus),
+                Token::BinaryOperator(crate::tokenizer::BinaryOp::Plus),
+                Token::BinaryOperator(crate::tokenizer::BinaryOp::Minus),
+            ]
+        )
     }
 }
