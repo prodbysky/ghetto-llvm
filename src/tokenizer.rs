@@ -4,6 +4,7 @@ use thiserror::Error;
 #[derive(Debug)]
 pub struct Tokenizer {
     source: std::collections::VecDeque<char>,
+    offset: usize,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -25,8 +26,12 @@ pub enum Token {
     Number {
         raw: String,
         flags: Vec<NumberTypeFlag>,
+        offset: usize,
     },
-    BinaryOperator(BinaryOp),
+    BinaryOperator {
+        op: BinaryOp,
+        offset: usize,
+    },
 }
 
 #[derive(Debug, Error)]
@@ -41,6 +46,7 @@ impl Tokenizer {
     pub fn new(source_code: String) -> Self {
         Self {
             source: source_code.chars().collect::<Vec<_>>().into(),
+            offset: 0,
         }
     }
     // TODO: Parsing floats, signed, hexadecimal, binary numbers
@@ -50,23 +56,31 @@ impl Tokenizer {
             self.trim_whitespace();
             if self.peek().is_some_and(|c| c.is_ascii_digit()) {
                 let mut buffer = String::new();
+                let offset = self.offset;
                 while self.peek().is_some_and(|c| c.is_ascii_digit()) {
                     buffer.push(self.consume().unwrap());
                 }
                 tokens.push(Token::Number {
                     raw: buffer,
                     flags: vec![],
+                    offset,
                 });
                 continue;
             }
             match self.peek() {
                 Some('+') => {
+                    tokens.push(Token::BinaryOperator {
+                        op: BinaryOp::Plus,
+                        offset: self.offset,
+                    });
                     self.consume();
-                    tokens.push(Token::BinaryOperator(BinaryOp::Plus));
                 }
                 Some('-') => {
+                    tokens.push(Token::BinaryOperator {
+                        op: BinaryOp::Minus,
+                        offset: self.offset,
+                    });
                     self.consume();
-                    tokens.push(Token::BinaryOperator(BinaryOp::Minus));
                 }
                 None => {
                     return Ok(tokens);
@@ -88,6 +102,7 @@ impl Tokenizer {
         self.source.front()
     }
     fn consume(&mut self) -> Option<char> {
+        self.offset += 1;
         self.source.pop_front()
     }
 
@@ -100,7 +115,7 @@ impl Tokenizer {
 
 #[cfg(test)]
 mod tests {
-    use crate::tokenizer::Token;
+    use crate::tokenizer::{BinaryOp, Token};
 
     use super::Tokenizer;
 
@@ -120,11 +135,13 @@ mod tests {
             vec![
                 Token::Number {
                     raw: "123".to_lowercase(),
-                    flags: vec![]
+                    flags: vec![],
+                    offset: 0
                 },
                 Token::Number {
                     raw: "69".to_lowercase(),
-                    flags: vec![]
+                    flags: vec![],
+                    offset: 4
                 },
             ]
         )
@@ -136,9 +153,18 @@ mod tests {
         assert_eq!(
             tokenizer.tokenize().unwrap(),
             vec![
-                Token::BinaryOperator(crate::tokenizer::BinaryOp::Minus),
-                Token::BinaryOperator(crate::tokenizer::BinaryOp::Plus),
-                Token::BinaryOperator(crate::tokenizer::BinaryOp::Minus),
+                Token::BinaryOperator {
+                    op: BinaryOp::Minus,
+                    offset: 0
+                },
+                Token::BinaryOperator {
+                    op: BinaryOp::Plus,
+                    offset: 2
+                },
+                Token::BinaryOperator {
+                    op: BinaryOp::Minus,
+                    offset: 4
+                },
             ]
         )
     }
