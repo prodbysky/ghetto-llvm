@@ -18,7 +18,7 @@ fn main() -> error_stack::Result<(), CompilerError> {
         ))
         .change_context(CompilerError)?;
 
-    let tokenizer = tokenizer::Tokenizer::new(input);
+    let tokenizer = tokenizer::Tokenizer::new(input, config.input_file_name);
     let mut tokens = tokenizer
         .tokenize()
         .change_context(CompilerError)

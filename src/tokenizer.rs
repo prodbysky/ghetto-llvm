@@ -1,9 +1,13 @@
+use std::panic::Location;
+
 use error_stack::ResultExt;
 use thiserror::Error;
 
 #[derive(Debug)]
 pub struct Tokenizer {
     source: std::collections::VecDeque<char>,
+    source_code_file_name: String,
+    not_changed: String,
     offset: usize,
 }
 
@@ -43,14 +47,38 @@ pub enum TokenizeError {
 pub type TokenizerResult = error_stack::Result<Vec<Token>, TokenizeError>;
 
 impl Tokenizer {
-    pub fn new(source_code: String) -> Self {
+    pub fn new(source_code: String, file_name: String) -> Self {
         Self {
             source: source_code.chars().collect::<Vec<_>>().into(),
+            source_code_file_name: file_name,
+            not_changed: source_code,
             offset: 0,
         }
     }
     // TODO: Parsing floats, signed, hexadecimal, binary numbers
     pub fn tokenize(mut self) -> TokenizerResult {
+        fn location_from_offset(input: &str, offset: usize) -> Option<(usize, usize)> {
+            if offset > input.len() {
+                return None;
+            }
+
+            let mut newline_count = 0;
+            let mut line_start = 0;
+
+            for (index, line) in input.lines().enumerate() {
+                let line_end = line_start + line.len();
+
+                if offset >= line_start && offset <= line_end {
+                    let column = offset - line_start;
+                    return Some((newline_count + 1, column + 1));
+                }
+
+                line_start = line_end + 1;
+                newline_count = index + 1;
+            }
+
+            None
+        }
         let mut tokens = vec![];
         while !self.finished() {
             self.trim_whitespace();
@@ -86,8 +114,12 @@ impl Tokenizer {
                     return Ok(tokens);
                 }
                 c => {
-                    return Err(TokenizeError::UnexpectedChar)
-                        .attach_printable(format!("unexpected character found: {c:?}"))
+                    let location = location_from_offset(&self.not_changed, self.offset)
+                        .expect("Something really bad happened");
+                    return Err(TokenizeError::UnexpectedChar).attach_printable(format!(
+                        "./{}:{}:{}: unexpected character found: {c:?}",
+                        self.source_code_file_name, location.0, location.1,
+                    ));
                 }
             }
         }
@@ -122,14 +154,14 @@ mod tests {
     #[test]
     fn empty() {
         let src = "".to_string();
-        let tokenizer = Tokenizer::new(src);
+        let tokenizer = Tokenizer::new(src, "tests::empty".to_string());
         assert_eq!(tokenizer.tokenize().unwrap(), vec![])
     }
 
     #[test]
     fn numbers() {
         let src = "123 69".to_string();
-        let tokenizer = Tokenizer::new(src);
+        let tokenizer = Tokenizer::new(src, "tests::numbers".to_string());
         assert_eq!(
             tokenizer.tokenize().unwrap(),
             vec![
@@ -149,7 +181,7 @@ mod tests {
     #[test]
     fn operators() {
         let src = "- + -".to_string();
-        let tokenizer = Tokenizer::new(src);
+        let tokenizer = Tokenizer::new(src, "tests::operators".to_string());
         assert_eq!(
             tokenizer.tokenize().unwrap(),
             vec![
