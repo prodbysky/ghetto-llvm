@@ -1,11 +1,9 @@
-use std::panic::Location;
-
 use error_stack::ResultExt;
 use thiserror::Error;
 
 #[derive(Debug)]
 pub struct Tokenizer {
-    source: std::collections::VecDeque<char>,
+    source: Vec<char>,
     source_code_file_name: String,
     not_changed: String,
     offset: usize,
@@ -48,8 +46,10 @@ pub type TokenizerResult = error_stack::Result<Vec<Token>, TokenizeError>;
 
 impl Tokenizer {
     pub fn new(source_code: String, file_name: String) -> Self {
+        let mut source: Vec<char> = source_code.chars().collect();
+        source.reverse();
         Self {
-            source: source_code.chars().collect::<Vec<_>>().into(),
+            source,
             source_code_file_name: file_name,
             not_changed: source_code,
             offset: 0,
@@ -131,11 +131,11 @@ impl Tokenizer {
     }
 
     fn peek(&self) -> Option<&char> {
-        self.source.front()
+        self.source.last()
     }
     fn consume(&mut self) -> Option<char> {
         self.offset += 1;
-        self.source.pop_front()
+        self.source.pop()
     }
 
     fn trim_whitespace(&mut self) {

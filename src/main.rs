@@ -1,3 +1,4 @@
+mod ast;
 mod config;
 mod tokenizer;
 use error_stack::ResultExt;
@@ -19,7 +20,7 @@ fn main() -> error_stack::Result<(), CompilerError> {
         .change_context(CompilerError)?;
 
     let tokenizer = tokenizer::Tokenizer::new(input, config.input_file_name);
-    let mut tokens = tokenizer
+    let tokens = tokenizer
         .tokenize()
         .change_context(CompilerError)
         .attach_printable("failed to tokenize source code")?;
