@@ -9,13 +9,14 @@ pub struct Tokenizer {
     offset: usize,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum BinaryOp {
     Plus,
     Minus,
+    Star,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum NumberTypeFlag {
     Signed,
     Floating,
@@ -23,7 +24,7 @@ pub enum NumberTypeFlag {
     Binary,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Token {
     Number {
         raw: String,
@@ -106,6 +107,13 @@ impl Tokenizer {
                 Some('-') => {
                     tokens.push(Token::BinaryOperator {
                         op: BinaryOp::Minus,
+                        offset: self.offset,
+                    });
+                    self.consume();
+                }
+                Some('*') => {
+                    tokens.push(Token::BinaryOperator {
+                        op: BinaryOp::Star,
                         offset: self.offset,
                     });
                     self.consume();
