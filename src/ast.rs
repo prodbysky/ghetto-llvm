@@ -104,20 +104,35 @@ impl AstParser {
     }
 
     fn factor(&mut self) -> ExpressionParseResult {
-        let token = self.peek().cloned();
-        if let Some(tokenizer::Token::Number {
-            raw,
-            flags,
-            offset: _,
-        }) = token
-        {
-            self.eat();
-            return Ok(Node::Number { raw, flags });
-        } else {
-            return Err(ExpressionParseError::InvalidFactorToken {
-                found: self.peek().cloned(),
-            })
-            .attach_printable("failed to parse factor");
+        match self.peek().cloned() {
+            Some(tokenizer::Token::Number {
+                raw,
+                flags,
+                offset: _,
+            }) => {
+                self.eat();
+                return Ok(Node::Number { raw, flags });
+            }
+            Some(tokenizer::Token::OpenParen) => {
+                self.eat();
+                let node = self.expression()?;
+
+                if let Some(tokenizer::Token::CloseParen) = self.peek() {
+                    self.eat();
+                    return Ok(node);
+                } else {
+                    return Err(ExpressionParseError::InvalidFactorToken {
+                        found: self.peek().cloned(),
+                    })
+                    .attach_printable("unclosed parenthesis found");
+                }
+            }
+            _ => {
+                return Err(ExpressionParseError::InvalidFactorToken {
+                    found: self.peek().cloned(),
+                })
+                .attach_printable("failed to parse factor");
+            }
         }
     }
 
@@ -164,6 +179,35 @@ mod tests {
                         raw: "2".to_string(),
                         flags: vec![]
                     }),
+                })
+            }]
+        )
+    }
+
+    #[test]
+    fn parenthesized_expression() {
+        let src = "(123 + 69) * 2".to_string();
+        let tokens = tokenizer::Tokenizer::new(src, "tests::binary_expression".to_string())
+            .tokenize()
+            .unwrap();
+        assert_eq!(
+            ast::AstParser::new(tokens).parse().unwrap(),
+            vec![Node::BinaryOperation {
+                left: Box::new(Node::BinaryOperation {
+                    left: Box::new(Node::Number {
+                        raw: "123".to_string(),
+                        flags: vec![]
+                    }),
+                    operator: tokenizer::BinaryOp::Plus,
+                    right: Box::new(Node::Number {
+                        raw: "69".to_string(),
+                        flags: vec![]
+                    }),
+                }),
+                operator: tokenizer::BinaryOp::Star,
+                right: Box::new(Node::Number {
+                    raw: "2".to_string(),
+                    flags: vec![]
                 })
             }]
         )

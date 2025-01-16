@@ -35,6 +35,8 @@ pub enum Token {
         op: BinaryOp,
         offset: usize,
     },
+    OpenParen,
+    CloseParen,
 }
 
 #[derive(Debug, Error)]
@@ -116,6 +118,14 @@ impl Tokenizer {
                         op: BinaryOp::Star,
                         offset: self.offset,
                     });
+                    self.consume();
+                }
+                Some('(') => {
+                    tokens.push(Token::OpenParen);
+                    self.consume();
+                }
+                Some(')') => {
+                    tokens.push(Token::CloseParen);
                     self.consume();
                 }
                 None => {
