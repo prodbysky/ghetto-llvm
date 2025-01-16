@@ -1,48 +1,25 @@
-use thiserror::Error;
+use clap::Parser;
 
-#[derive(Debug, Error)]
-pub enum ConfigParseError {
-    #[error("input file not provided")]
-    InputNotProvided,
-    #[error("executable name not found")]
-    ExecutableNameNotFound,
-}
-
-#[derive(Debug, PartialEq, Eq)]
+/// Compiler / interpreter for the ghetto-llvm language
+#[derive(Debug, PartialEq, Eq, Parser)]
 pub struct Config {
-    pub executable_name: String,
+    /// The name of the source code file
+    #[arg(short)]
     pub input_file_name: String,
-}
 
-pub type ConfigResult = error_stack::Result<Config, ConfigParseError>;
+    /// Dump ast to file
+    #[arg(long)]
+    pub dump_ast: bool,
 
-impl Config {
-    /// First arg should always be the compiler executable name and second one should always be the
-    /// input file name
-    pub fn from_args(args: &mut impl std::iter::Iterator<Item = String>) -> ConfigResult {
-        Ok(Self {
-            executable_name: args
-                .next()
-                .ok_or(ConfigParseError::ExecutableNameNotFound)?,
-            input_file_name: args.next().ok_or(ConfigParseError::InputNotProvided)?,
-        })
-    }
-}
+    /// File name to which the AST should be dumped
+    #[arg(long = "ast_out", default_value_t = String::from("out.ghl_ast"))]
+    pub ast_out_name: String,
 
-#[cfg(test)]
-mod tests {
-    use super::Config;
+    /// Dump tokens to file
+    #[arg(long)]
+    pub dump_tokens: bool,
 
-    #[test]
-    fn basic_input() {
-        let mut args = vec!["program".to_string(), "main.ghl".to_string()].into_iter();
-        let cfg = Config::from_args(&mut args).unwrap();
-        assert_eq!(
-            cfg,
-            Config {
-                executable_name: "program".to_string(),
-                input_file_name: "main.ghl".to_string(),
-            }
-        )
-    }
+    /// File name to which the tokens should be dumped
+    #[arg(long = "tokens_out", default_value_t = String::from("out.ghl_tokens"))]
+    pub tokens_out_name: String,
 }
