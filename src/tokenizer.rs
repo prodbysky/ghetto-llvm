@@ -14,6 +14,7 @@ pub enum BinaryOp {
     Plus,
     Minus,
     Star,
+    SingleEqual,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -37,6 +38,10 @@ pub enum Token {
     },
     OpenParen,
     CloseParen,
+    Colon,
+    Let,
+    Semicolon,
+    Identifier(String),
 }
 
 #[derive(Debug, Error)]
@@ -128,6 +133,35 @@ impl Tokenizer {
                     tokens.push(Token::CloseParen);
                     self.consume();
                 }
+                Some(':') => {
+                    tokens.push(Token::Colon);
+                    self.consume();
+                }
+                Some(';') => {
+                    tokens.push(Token::Semicolon);
+                    self.consume();
+                }
+                Some('=') => {
+                    tokens.push(Token::BinaryOperator {
+                        op: BinaryOp::SingleEqual,
+                        offset: self.offset,
+                    });
+                    self.consume();
+                }
+                c if c.is_some_and(|c| c.is_ascii_alphabetic() || *c == '_') => {
+                    let mut buf = String::new();
+                    while self
+                        .peek()
+                        .is_some_and(|c| c.is_ascii_alphanumeric() || *c == '_')
+                    {
+                        buf.push(self.consume().unwrap());
+                    }
+
+                    tokens.push(match buf.as_str() {
+                        "let" => Token::Let,
+                        _ => Token::Identifier(buf),
+                    });
+                }
                 None => {
                     return Ok(tokens);
                 }
@@ -215,6 +249,34 @@ mod tests {
                     op: BinaryOp::Minus,
                     offset: 4
                 },
+            ]
+        )
+    }
+
+    #[test]
+    fn let_statement() {
+        let src = "let a: u64 = 1;".to_string();
+        let tokens = Tokenizer::new(src, "tests::let".to_string())
+            .tokenize()
+            .unwrap();
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Let,
+                Token::Identifier("a".to_string()),
+                Token::Colon,
+                Token::Identifier("u64".to_string()),
+                Token::BinaryOperator {
+                    op: BinaryOp::SingleEqual,
+                    offset: 11
+                },
+                Token::Number {
+                    raw: "1".to_string(),
+                    flags: vec![],
+                    offset: 13
+                },
+                Token::Semicolon
             ]
         )
     }

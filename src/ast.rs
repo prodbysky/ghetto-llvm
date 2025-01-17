@@ -17,12 +17,21 @@ pub enum Node {
         operator: tokenizer::BinaryOp,
         right: Box<Node>,
     },
+    Let {
+        value: Box<Node>,
+        name: String,
+        t: String,
+    },
 }
 
 #[derive(Debug, Error)]
 pub enum AstParseError {
     #[error("invalid expression found during ast parsing")]
     InvalidExpression,
+    #[error("found an expression at the top level")]
+    ExpressionAtToplevel,
+    #[error("invalid let statement")]
+    InvalidLetStatement,
 }
 
 pub type AstParseResult = error_stack::Result<Vec<Node>, AstParseError>;
@@ -44,11 +53,62 @@ impl AstParser {
         let mut nodes = vec![];
 
         while !self.finished() {
-            nodes.push(
-                self.expression()
-                    .change_context(AstParseError::InvalidExpression)
-                    .attach_printable("failed to parse expression")?,
-            );
+            match self.peek().unwrap() {
+                tokenizer::Token::Let => {
+                    self.eat(); // Let
+                    let name = self.eat();
+                    self.eat(); // Colon
+                    let t = self.eat();
+                    self.eat(); // `=`
+                    let value = self
+                        .expression()
+                        .change_context(AstParseError::InvalidExpression)
+                        .attach_printable("found an invalid expression")?;
+                    self.eat(); // `;`
+
+                    nodes.push(match (name, t, &value) {
+                        (
+                            Some(tokenizer::Token::Identifier(name)),
+                            Some(tokenizer::Token::Identifier(t)),
+                            Node::BinaryOperation {
+                                left: _,
+                                operator: _,
+                                right: _,
+                            },
+                        ) => Node::Let {
+                            value: Box::new(value),
+                            name,
+                            t,
+                        },
+                        (
+                            Some(tokenizer::Token::Identifier(name)),
+                            Some(tokenizer::Token::Identifier(t)),
+                            Node::Number { raw: _, flags: _ },
+                        ) => Node::Let {
+                            value: Box::new(value),
+                            name,
+                            t,
+                        },
+
+                        _ => {
+                            return Err(AstParseError::InvalidLetStatement)
+                                .attach_printable("found an invalid let statement")
+                        }
+                    });
+                }
+                tokenizer::Token::Semicolon => {
+                    while self
+                        .peek()
+                        .is_some_and(|t| matches!(t, tokenizer::Token::Semicolon))
+                    {
+                        self.eat();
+                    }
+                }
+                _ => {
+                    return Err(AstParseError::ExpressionAtToplevel)
+                        .attach_printable("failed to parse program")
+                }
+            }
         }
 
         Ok(nodes)
@@ -156,60 +216,35 @@ mod tests {
     };
 
     #[test]
-    fn binary_expression() {
-        let src = "123 + 69 * 2".to_string();
-        let tokens = tokenizer::Tokenizer::new(src, "tests::binary_expression".to_string())
+    fn let_statement() {
+        let src = "let a: u64 = (123 + 69) * 2;".to_string();
+        let tokens = tokenizer::Tokenizer::new(src, "tests::let_statement".to_string())
             .tokenize()
             .unwrap();
         assert_eq!(
             ast::AstParser::new(tokens).parse().unwrap(),
-            vec![Node::BinaryOperation {
-                left: Box::new(Node::Number {
-                    raw: "123".to_string(),
-                    flags: vec![]
-                }),
-                operator: tokenizer::BinaryOp::Plus,
-                right: Box::new(Node::BinaryOperation {
-                    left: Box::new(Node::Number {
-                        raw: "69".to_string(),
-                        flags: vec![]
+            vec![Node::Let {
+                value: Box::new(Node::BinaryOperation {
+                    left: Box::new(Node::BinaryOperation {
+                        left: Box::new(Node::Number {
+                            raw: "123".to_string(),
+                            flags: vec![]
+                        }),
+                        operator: tokenizer::BinaryOp::Plus,
+                        right: Box::new(Node::Number {
+                            raw: "69".to_string(),
+                            flags: vec![]
+                        }),
                     }),
                     operator: tokenizer::BinaryOp::Star,
                     right: Box::new(Node::Number {
                         raw: "2".to_string(),
                         flags: vec![]
-                    }),
-                })
-            }]
-        )
-    }
-
-    #[test]
-    fn parenthesized_expression() {
-        let src = "(123 + 69) * 2".to_string();
-        let tokens = tokenizer::Tokenizer::new(src, "tests::binary_expression".to_string())
-            .tokenize()
-            .unwrap();
-        assert_eq!(
-            ast::AstParser::new(tokens).parse().unwrap(),
-            vec![Node::BinaryOperation {
-                left: Box::new(Node::BinaryOperation {
-                    left: Box::new(Node::Number {
-                        raw: "123".to_string(),
-                        flags: vec![]
-                    }),
-                    operator: tokenizer::BinaryOp::Plus,
-                    right: Box::new(Node::Number {
-                        raw: "69".to_string(),
-                        flags: vec![]
-                    }),
+                    })
                 }),
-                operator: tokenizer::BinaryOp::Star,
-                right: Box::new(Node::Number {
-                    raw: "2".to_string(),
-                    flags: vec![]
-                })
-            }]
+                name: String::from("a"),
+                t: String::from("u64"),
+            },]
         )
     }
 }
