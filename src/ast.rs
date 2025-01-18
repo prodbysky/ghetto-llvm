@@ -22,6 +22,9 @@ pub enum Node {
         name: String,
         t: String,
     },
+    Exit {
+        value: Box<Node>,
+    },
 }
 
 #[derive(Debug, Error)]
@@ -96,6 +99,15 @@ impl AstParser {
                         }
                     });
                 }
+                tokenizer::Token::Exit => {
+                    self.eat();
+                    nodes.push(Node::Exit {
+                        value: Box::new(
+                            self.expression()
+                                .change_context(AstParseError::InvalidExpression)?,
+                        ),
+                    });
+                }
                 tokenizer::Token::Semicolon => {
                     while self
                         .peek()
@@ -116,19 +128,19 @@ impl AstParser {
 
     fn expression(&mut self) -> ExpressionParseResult {
         let mut node = self.term()?;
-        let term_operator = |token: &tokenizer::Token| match token {
-            tokenizer::Token::BinaryOperator {
-                op: BinaryOp::Plus,
-                offset: _,
-            }
-            | tokenizer::Token::BinaryOperator {
-                op: BinaryOp::Minus,
-                offset: _,
-            } => true,
-            _ => false,
+        let term_operator = |token: &tokenizer::Token| {
+            matches!(
+                token,
+                tokenizer::Token::BinaryOperator {
+                    op: BinaryOp::Plus,
+                    offset: _
+                } | tokenizer::Token::BinaryOperator {
+                    op: BinaryOp::Minus,
+                    offset: _
+                }
+            )
         };
-
-        while self.peek().is_some_and(|token| term_operator(token)) {
+        while self.peek().is_some_and(term_operator) {
             if let Some(tokenizer::Token::BinaryOperator { op, offset: _ }) = self.eat() {
                 node = Node::BinaryOperation {
                     left: Box::new(node),
@@ -143,15 +155,17 @@ impl AstParser {
     fn term(&mut self) -> ExpressionParseResult {
         let mut node = self.factor()?;
 
-        let factor_operator = |token: &tokenizer::Token| match token {
-            tokenizer::Token::BinaryOperator {
-                op: BinaryOp::Star,
-                offset: _,
-            } => true,
-            _ => false,
+        let factor_operator = |token: &tokenizer::Token| {
+            matches!(
+                token,
+                tokenizer::Token::BinaryOperator {
+                    op: BinaryOp::Star,
+                    offset: _
+                }
+            )
         };
 
-        while self.peek().is_some_and(|token| factor_operator(token)) {
+        while self.peek().is_some_and(factor_operator) {
             if let Some(tokenizer::Token::BinaryOperator { op, offset: _ }) = self.eat() {
                 node = Node::BinaryOperation {
                     left: Box::new(node),
@@ -171,7 +185,7 @@ impl AstParser {
                 offset: _,
             }) => {
                 self.eat();
-                return Ok(Node::Number { raw, flags });
+                Ok(Node::Number { raw, flags })
             }
             Some(tokenizer::Token::OpenParen) => {
                 self.eat();
@@ -179,20 +193,18 @@ impl AstParser {
 
                 if let Some(tokenizer::Token::CloseParen) = self.peek() {
                     self.eat();
-                    return Ok(node);
+                    Ok(node)
                 } else {
-                    return Err(ExpressionParseError::InvalidFactorToken {
+                    Err(ExpressionParseError::InvalidFactorToken {
                         found: self.peek().cloned(),
                     })
-                    .attach_printable("unclosed parenthesis found");
+                    .attach_printable("unclosed parenthesis found")
                 }
             }
-            _ => {
-                return Err(ExpressionParseError::InvalidFactorToken {
-                    found: self.peek().cloned(),
-                })
-                .attach_printable("failed to parse factor");
-            }
+            _ => Err(ExpressionParseError::InvalidFactorToken {
+                found: self.peek().cloned(),
+            })
+            .attach_printable("failed to parse factor"),
         }
     }
 

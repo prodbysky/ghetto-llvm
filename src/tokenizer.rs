@@ -18,6 +18,7 @@ pub enum BinaryOp {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
+#[expect(dead_code)]
 pub enum NumberTypeFlag {
     Signed,
     Floating,
@@ -40,6 +41,7 @@ pub enum Token {
     CloseParen,
     Colon,
     Let,
+    Exit,
     Semicolon,
     Identifier(String),
 }
@@ -159,6 +161,7 @@ impl Tokenizer {
 
                     tokens.push(match buf.as_str() {
                         "let" => Token::Let,
+                        "exit" => Token::Exit,
                         _ => Token::Identifier(buf),
                     });
                 }
