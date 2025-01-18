@@ -22,4 +22,12 @@ pub struct Config {
     /// File name to which the tokens should be dumped
     #[arg(long = "tokens_out", default_value_t = String::from("out.ghl_tokens"))]
     pub tokens_out_name: String,
+
+    /// Dump c code to file
+    #[arg(long)]
+    pub dump_c: bool,
+
+    /// File name to which the C code should be dumped
+    #[arg(long = "c_out", default_value_t = String::from("out.c"))]
+    pub c_out_name: String,
 }

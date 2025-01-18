@@ -1,7 +1,10 @@
 mod ast;
+mod cbackend;
 mod config;
 mod ir;
 mod tokenizer;
+
+use std::io::Write;
 
 use clap::Parser;
 use error_stack::ResultExt;
@@ -41,8 +44,22 @@ fn main() -> error_stack::Result<(), CompilerError> {
             .change_context(CompilerError)
             .attach_printable("failed to dump ast to file")?;
     }
-    let mut ir_generator = ir::IrGenerator::new(ast);
+
+    let ir_generator = ir::IrGenerator::new(ast);
     let ir = ir_generator.generate();
-    dbg!(ir);
+
+    if config.dump_c {
+        let mut file = std::fs::File::options()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(config.c_out_name)
+            .unwrap();
+        let cb = cbackend::CBackend::new(ir);
+        let out = cb.compile().unwrap();
+        file.write_all(&out)
+            .change_context(CompilerError)
+            .attach_printable("failed to dump out the c code")?;
+    }
     Ok(())
 }

@@ -31,6 +31,37 @@ pub enum AstExpression {
     },
 }
 
+impl std::fmt::Display for AstExpression {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Number { raw, flags } => {
+                f.write_str(&raw)?;
+            }
+            Self::BinaryOperation {
+                left,
+                operator,
+                right,
+            } => {
+                f.write_str(format!("{}", left).as_str())?;
+                f.write_str(
+                    format!(
+                        "{}",
+                        match operator {
+                            BinaryOp::Plus => '+',
+                            BinaryOp::Minus => '-',
+                            BinaryOp::Star => '*',
+                            BinaryOp::SingleEqual => '=',
+                        }
+                    )
+                    .as_str(),
+                )?;
+                f.write_str(format!("{}", right).as_str())?;
+            }
+        }
+        Ok(())
+    }
+}
+
 pub type AstProgram = Vec<AstStatement>;
 
 #[derive(Debug, Error)]
