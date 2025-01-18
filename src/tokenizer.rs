@@ -202,9 +202,8 @@ impl Tokenizer {
 
 #[cfg(test)]
 mod tests {
-    use crate::tokenizer::{BinaryOp, Token};
-
     use super::Tokenizer;
+    use crate::tokenizer::{BinaryOp, Token};
 
     #[test]
     fn empty() {

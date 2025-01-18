@@ -1,5 +1,6 @@
 mod ast;
 mod config;
+mod ir;
 mod tokenizer;
 
 use clap::Parser;
@@ -30,7 +31,6 @@ fn main() -> error_stack::Result<(), CompilerError> {
             .change_context(CompilerError)
             .attach_printable("failed to dump tokens to file")?;
     }
-
     let mut ast_parser = ast::AstParser::new(tokens);
     let ast = ast_parser
         .parse()
@@ -41,5 +41,8 @@ fn main() -> error_stack::Result<(), CompilerError> {
             .change_context(CompilerError)
             .attach_printable("failed to dump ast to file")?;
     }
+    let mut ir_generator = ir::IrGenerator::new(ast);
+    let ir = ir_generator.generate();
+    dbg!(ir);
     Ok(())
 }
