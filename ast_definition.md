@@ -3,13 +3,14 @@ Statement:
     Let
     Exit
 
-Let: let `name`: `type` = [Expression]
-Exit: exit([Expression])
+Let: let `name`: `type` = [Expression];
+Exit: exit([Expression]);
 
 
 Expression:
     BinaryExpression
     Number
+    Identifer
 
 BinaryExpression:
     Left: [Expression]

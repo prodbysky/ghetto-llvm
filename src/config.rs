@@ -7,6 +7,10 @@ pub struct Config {
     #[arg(short)]
     pub input_file_name: String,
 
+    /// Output executable name
+    #[arg(short, long = "out", default_value_t = String::from("main"))]
+    pub output_exe_name: String,
+
     /// Dump ast to file
     #[arg(long)]
     pub dump_ast: bool,

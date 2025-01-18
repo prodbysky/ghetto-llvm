@@ -29,6 +29,9 @@ pub enum AstExpression {
         operator: tokenizer::BinaryOp,
         right: Box<AstExpression>,
     },
+    Identifier {
+        name: String,
+    },
 }
 
 impl std::fmt::Display for AstExpression {
@@ -36,6 +39,9 @@ impl std::fmt::Display for AstExpression {
         match self {
             Self::Number { raw, flags } => {
                 f.write_str(&raw)?;
+            }
+            Self::Identifier { name } => {
+                f.write_str(&name)?;
             }
             Self::BinaryOperation {
                 left,
@@ -214,6 +220,10 @@ impl AstParser {
             }) => {
                 self.eat();
                 Ok(AstExpression::Number { raw, flags })
+            }
+            Some(tokenizer::Token::Identifier(name)) => {
+                self.eat();
+                Ok(AstExpression::Identifier { name })
             }
             Some(tokenizer::Token::OpenParen) => {
                 self.eat();
