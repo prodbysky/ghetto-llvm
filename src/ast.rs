@@ -7,25 +7,31 @@ pub struct AstParser {
 }
 
 #[derive(PartialEq, Debug)]
-pub enum Node {
+pub enum AstStatement {
+    Let {
+        value: AstExpression,
+        name: String,
+        t: String,
+    },
+    Exit {
+        value: AstExpression,
+    },
+}
+
+#[derive(PartialEq, Debug)]
+pub enum AstExpression {
     Number {
         raw: String,
         flags: Vec<tokenizer::NumberTypeFlag>,
     },
     BinaryOperation {
-        left: Box<Node>,
+        left: Box<AstExpression>,
         operator: tokenizer::BinaryOp,
-        right: Box<Node>,
-    },
-    Let {
-        value: Box<Node>,
-        name: String,
-        t: String,
-    },
-    Exit {
-        value: Box<Node>,
+        right: Box<AstExpression>,
     },
 }
+
+pub type AstProgram = Vec<AstStatement>;
 
 #[derive(Debug, Error)]
 pub enum AstParseError {
@@ -37,14 +43,14 @@ pub enum AstParseError {
     InvalidLetStatement,
 }
 
-pub type AstParseResult = error_stack::Result<Vec<Node>, AstParseError>;
+pub type AstParseResult = error_stack::Result<AstProgram, AstParseError>;
 
 #[derive(Debug, Error)]
 pub enum ExpressionParseError {
     #[error("unexpected token found when parsing `factor`, got: {found:?}")]
     InvalidFactorToken { found: Option<tokenizer::Token> },
 }
-pub type ExpressionParseResult = error_stack::Result<Node, ExpressionParseError>;
+pub type ExpressionParseResult = error_stack::Result<AstExpression, ExpressionParseError>;
 
 impl AstParser {
     pub fn new(mut tokens: Vec<tokenizer::Token>) -> Self {
@@ -73,25 +79,17 @@ impl AstParser {
                         (
                             Some(tokenizer::Token::Identifier(name)),
                             Some(tokenizer::Token::Identifier(t)),
-                            Node::BinaryOperation {
+                            AstExpression::BinaryOperation {
                                 left: _,
                                 operator: _,
                                 right: _,
                             },
-                        ) => Node::Let {
-                            value: Box::new(value),
-                            name,
-                            t,
-                        },
+                        ) => AstStatement::Let { value, name, t },
                         (
                             Some(tokenizer::Token::Identifier(name)),
                             Some(tokenizer::Token::Identifier(t)),
-                            Node::Number { raw: _, flags: _ },
-                        ) => Node::Let {
-                            value: Box::new(value),
-                            name,
-                            t,
-                        },
+                            AstExpression::Number { raw: _, flags: _ },
+                        ) => AstStatement::Let { value, name, t },
 
                         _ => {
                             return Err(AstParseError::InvalidLetStatement)
@@ -101,11 +99,10 @@ impl AstParser {
                 }
                 tokenizer::Token::Exit => {
                     self.eat();
-                    nodes.push(Node::Exit {
-                        value: Box::new(
-                            self.expression()
-                                .change_context(AstParseError::InvalidExpression)?,
-                        ),
+                    nodes.push(AstStatement::Exit {
+                        value: self
+                            .expression()
+                            .change_context(AstParseError::InvalidExpression)?,
                     });
                 }
                 tokenizer::Token::Semicolon => {
@@ -142,7 +139,7 @@ impl AstParser {
         };
         while self.peek().is_some_and(term_operator) {
             if let Some(tokenizer::Token::BinaryOperator { op, offset: _ }) = self.eat() {
-                node = Node::BinaryOperation {
+                node = AstExpression::BinaryOperation {
                     left: Box::new(node),
                     operator: op,
                     right: Box::new(self.term()?),
@@ -167,7 +164,7 @@ impl AstParser {
 
         while self.peek().is_some_and(factor_operator) {
             if let Some(tokenizer::Token::BinaryOperator { op, offset: _ }) = self.eat() {
-                node = Node::BinaryOperation {
+                node = AstExpression::BinaryOperation {
                     left: Box::new(node),
                     operator: op,
                     right: Box::new(self.factor()?),
@@ -185,7 +182,7 @@ impl AstParser {
                 offset: _,
             }) => {
                 self.eat();
-                Ok(Node::Number { raw, flags })
+                Ok(AstExpression::Number { raw, flags })
             }
             Some(tokenizer::Token::OpenParen) => {
                 self.eat();
@@ -223,40 +220,43 @@ impl AstParser {
 #[cfg(test)]
 mod tests {
     use crate::{
-        ast::{self, Node},
+        ast::{self, AstExpression, AstStatement},
         tokenizer,
     };
 
     #[test]
     fn let_statement() {
-        let src = "let a: u64 = (123 + 69) * 2;".to_string();
-        let tokens = tokenizer::Tokenizer::new(src, "tests::let_statement".to_string())
-            .tokenize()
-            .unwrap();
-        assert_eq!(
-            ast::AstParser::new(tokens).parse().unwrap(),
-            vec![Node::Let {
-                value: Box::new(Node::BinaryOperation {
-                    left: Box::new(Node::BinaryOperation {
-                        left: Box::new(Node::Number {
-                            raw: "123".to_string(),
-                            flags: vec![]
+        {
+            let src = "let a: u64 = (123 + 69) * 2;".to_string();
+            let tokens = tokenizer::Tokenizer::new(src, "tests::let_statement".to_string())
+                .tokenize()
+                .unwrap();
+
+            assert_eq!(
+                ast::AstParser::new(tokens).parse().unwrap(),
+                vec![AstStatement::Let {
+                    value: AstExpression::BinaryOperation {
+                        left: Box::new(AstExpression::BinaryOperation {
+                            left: Box::new(AstExpression::Number {
+                                raw: "123".to_string(),
+                                flags: vec![]
+                            }),
+                            operator: tokenizer::BinaryOp::Plus,
+                            right: Box::new(AstExpression::Number {
+                                raw: "69".to_string(),
+                                flags: vec![]
+                            }),
                         }),
-                        operator: tokenizer::BinaryOp::Plus,
-                        right: Box::new(Node::Number {
-                            raw: "69".to_string(),
+                        operator: tokenizer::BinaryOp::Star,
+                        right: Box::new(AstExpression::Number {
+                            raw: "2".to_string(),
                             flags: vec![]
-                        }),
-                    }),
-                    operator: tokenizer::BinaryOp::Star,
-                    right: Box::new(Node::Number {
-                        raw: "2".to_string(),
-                        flags: vec![]
-                    })
-                }),
-                name: String::from("a"),
-                t: String::from("u64"),
-            },]
-        )
+                        })
+                    },
+                    name: String::from("a"),
+                    t: String::from("u64"),
+                },]
+            )
+        }
     }
 }
